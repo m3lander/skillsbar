@@ -110,7 +110,7 @@ struct AboutView: View {
                         .clipShape(Capsule())
                 }
 
-                Text("Browse Claude Code and Codex CLI skills, plugins, agents, and collections right from your menu bar.")
+                Text("Browse Claude Code, Codex CLI, and Pi CLI skills, plus plugins, agents, and collections right from your menu bar.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -144,13 +144,34 @@ struct AboutView: View {
 
     private var watchedDirectories: [(displayPath: String, resolvedURL: URL)] {
         let homeURL = fileManager.homeDirectoryForCurrentUser
-        return [
+        let claudeAndCodexDirectories: [(displayPath: String, resolvedURL: URL)] = [
             ("~/.claude/skills/", homeURL.appendingPathComponent(".claude/skills", isDirectory: true)),
             ("~/.claude/plugins/cache/", homeURL.appendingPathComponent(".claude/plugins/cache", isDirectory: true)),
             ("~/.claude/agents/", homeURL.appendingPathComponent(".claude/agents", isDirectory: true)),
             ("~/.codex/skills/", homeURL.appendingPathComponent(".codex/skills", isDirectory: true)),
             ("~/.codex/plugins/cache/", homeURL.appendingPathComponent(".codex/plugins/cache", isDirectory: true))
         ]
+
+        let currentDirectory = (fileManager.currentDirectoryPath as NSString).standardizingPath
+        let piDirectories = SkillScanner.piBuiltInDiscoveryRoots(fileManager: fileManager).map { path -> (displayPath: String, resolvedURL: URL) in
+            let displayPath = displayPathForDirectory(path, homePath: homeURL.path, currentDirectory: currentDirectory)
+            return (displayPath, URL(fileURLWithPath: path, isDirectory: true))
+        }
+
+        return claudeAndCodexDirectories + piDirectories
+    }
+
+    private func displayPathForDirectory(_ path: String, homePath: String, currentDirectory: String) -> String {
+        var displayPath = path
+        if displayPath.hasPrefix(homePath) {
+            displayPath = "~" + String(displayPath.dropFirst(homePath.count))
+        } else if displayPath.hasPrefix(currentDirectory) {
+            displayPath = "<cwd>" + String(displayPath.dropFirst(currentDirectory.count))
+        }
+        if !displayPath.hasSuffix("/") {
+            displayPath.append("/")
+        }
+        return displayPath
     }
 
     private var footerLinks: some View {

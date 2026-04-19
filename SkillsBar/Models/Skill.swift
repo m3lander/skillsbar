@@ -91,6 +91,10 @@ struct Skill: Identifiable, Hashable {
         case .codexCLI(.user):
             let folderName = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
             return folderName
+
+        case .piCLI:
+            let folderName = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
+            return folderName
         }
     }
 
@@ -106,6 +110,8 @@ struct Skill: Identifiable, Hashable {
             return "Available through an installed Codex plugin"
         case .codexCLI(.user):
             return "Available as an installed skill in Codex CLI"
+        case .piCLI:
+            return "Discovered from Pi CLI built-in skill locations"
         }
     }
 }

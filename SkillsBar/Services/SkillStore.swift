@@ -291,6 +291,8 @@ final class SkillStore: ObservableObject {
             tabGroups = source.filter { $0.id == "claude-code" }
         case .codex:
             tabGroups = source.filter { $0.id == "codex-cli" }
+        case .piCLI:
+            tabGroups = source.filter { $0.id == "pi-cli" }
         case .collections:
             return []
         }
@@ -383,6 +385,8 @@ final class SkillStore: ObservableObject {
         case .codex:
             let skillCount = allGroups.filter { $0.id == "codex-cli" }.reduce(0) { $0 + $1.totalCount }
             return skillCount + plugins.count
+        case .piCLI:
+            return allGroups.filter { $0.id == "pi-cli" }.reduce(0) { $0 + $1.totalCount }
         case .collections:
             return collections.count
         }
@@ -391,6 +395,7 @@ final class SkillStore: ObservableObject {
     enum SkillTab: String, CaseIterable, Identifiable {
         case claudeCode = "Claude Code"
         case codex = "Codex"
+        case piCLI = "Pi"
         case collections = "Collections"
 
         var id: String { rawValue }
@@ -549,7 +554,7 @@ final class SkillStore: ObservableObject {
             (home as NSString).appendingPathComponent(".claude/agents"),
             (home as NSString).appendingPathComponent(".codex/skills"),
             (home as NSString).appendingPathComponent(".codex/plugins/cache"),
-        ].map { standardizedPath($0) }
+        ].map { standardizedPath($0) } + SkillScanner.piBuiltInDiscoveryRoots().map { standardizedPath($0) }
 
         watchedRefreshPrefixes = targetPaths
         watchedCreationMarkers = []
@@ -573,6 +578,18 @@ final class SkillStore: ObservableObject {
             } else {
                 watchPaths.append(standardizedPath(home))
                 watchedCreationMarkers.insert(standardizedPath(codexRoot))
+            }
+        }
+
+        for targetPath in targetPaths where !fileManager.fileExists(atPath: targetPath) {
+            var parentPath = standardizedPath((targetPath as NSString).deletingLastPathComponent)
+            while parentPath != "/" && !fileManager.fileExists(atPath: parentPath) {
+                parentPath = standardizedPath((parentPath as NSString).deletingLastPathComponent)
+            }
+
+            if fileManager.fileExists(atPath: parentPath) {
+                watchPaths.append(parentPath)
+                watchedCreationMarkers.insert(targetPath)
             }
         }
 
@@ -664,6 +681,9 @@ final class SkillStore: ObservableObject {
         var codexBuiltinSkills: [Skill] = []
         var codexPluginSkills: [Skill] = []
         var codexUserSkills: [Skill] = []
+        var piManagedSkills: [Skill] = []
+        var piSharedSkills: [Skill] = []
+        var piWorkspaceSkills: [Skill] = []
 
         for skill in skills {
             switch skill.source {
@@ -672,6 +692,9 @@ final class SkillStore: ObservableObject {
             case .codexCLI(.builtin): codexBuiltinSkills.append(skill)
             case .codexCLI(.plugin): codexPluginSkills.append(skill)
             case .codexCLI(.user): codexUserSkills.append(skill)
+            case .piCLI(.managed): piManagedSkills.append(skill)
+            case .piCLI(.shared): piSharedSkills.append(skill)
+            case .piCLI(.workspace): piWorkspaceSkills.append(skill)
             }
         }
 
@@ -694,6 +717,16 @@ final class SkillStore: ObservableObject {
 
         if !codexSections.isEmpty {
             groups.append(SkillGroup(id: "codex-cli", title: "Codex CLI", sections: codexSections))
+        }
+
+        let piSections = [
+            piManagedSkills.isEmpty ? nil : SkillSection(id: "pi-managed", title: "Agent Skills", skills: sortSkills(piManagedSkills)),
+            piSharedSkills.isEmpty ? nil : SkillSection(id: "pi-shared", title: "Shared Skills", skills: sortSkills(piSharedSkills)),
+            piWorkspaceSkills.isEmpty ? nil : SkillSection(id: "pi-workspace", title: "Workspace Skills", skills: sortSkills(piWorkspaceSkills))
+        ].compactMap { $0 }
+
+        if !piSections.isEmpty {
+            groups.append(SkillGroup(id: "pi-cli", title: "Pi CLI", sections: piSections))
         }
 
         return groups

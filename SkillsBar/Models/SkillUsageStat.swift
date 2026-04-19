@@ -3,6 +3,7 @@ import Foundation
 enum UsageSource: String, Codable, CaseIterable, Hashable {
     case claudeCode
     case codexCLI
+    case piCLI
 
     var displayName: String {
         switch self {
@@ -10,6 +11,8 @@ enum UsageSource: String, Codable, CaseIterable, Hashable {
             return "Claude Code"
         case .codexCLI:
             return "Codex CLI"
+        case .piCLI:
+            return "Pi CLI"
         }
     }
 
@@ -18,6 +21,8 @@ enum UsageSource: String, Codable, CaseIterable, Hashable {
         case .claudeCode:
             return "/"
         case .codexCLI:
+            return "$"
+        case .piCLI:
             return "$"
         }
     }
@@ -28,6 +33,8 @@ enum UsageSource: String, Codable, CaseIterable, Hashable {
             return "Claude"
         case .codexCLI:
             return "Codex"
+        case .piCLI:
+            return "Pi"
         }
     }
 }

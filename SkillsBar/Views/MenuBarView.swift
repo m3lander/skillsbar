@@ -2,6 +2,7 @@ import SwiftUI
 
 private let claudeColor = Color(red: 0.85, green: 0.45, blue: 0.1)
 private let codexColor = Color.purple
+private let piColor = Color.indigo
 private let collectionsColor = Color.blue
 private let cardBackground = Color.primary.opacity(0.10)
 private let cardRadius: CGFloat = 12
@@ -23,7 +24,7 @@ struct MenuBarView: View {
     @State private var collapsedSections: Set<String> = {
         let defaults = UserDefaults.standard
         let saved = Set(defaults.stringArray(forKey: "collapsedSections") ?? [])
-        let whatsNewSections: Set<String> = ["claude-whats-new", "codex-whats-new"]
+        let whatsNewSections: Set<String> = ["claude-whats-new", "codex-whats-new", "pi-whats-new"]
 
         guard !defaults.bool(forKey: "hasInitializedWhatsNewSections") else {
             return saved
@@ -432,34 +433,53 @@ struct MenuBarView: View {
                                     }
                                 }
 
-                                // User Skills
-                                ForEach(tabGroups.filter { $0.id != "pinned" }) { group in
-                                    ForEach(group.sections.filter { $0.id == "codex-user" }) { section in
-                                        skillSectionCard(group: group, section: section)
+                                if selectedTab == .codex {
+                                    // User Skills
+                                    ForEach(tabGroups.filter { $0.id != "pinned" }) { group in
+                                        ForEach(group.sections.filter { $0.id == "codex-user" }) { section in
+                                            skillSectionCard(group: group, section: section)
+                                        }
                                     }
-                                }
 
-                                if !recentItems.isEmpty,
-                                   let recentSectionID = whatsNewSectionID(for: selectedTab) {
-                                    whatsNewSectionCard(recentItems, sectionID: recentSectionID)
-                                }
-
-                                // Installed Plugins
-                                if !plugins.isEmpty {
-                                    pluginSectionCard(plugins)
-                                }
-
-                                // Plugin Skills
-                                ForEach(tabGroups.filter { $0.id != "pinned" }) { group in
-                                    ForEach(group.sections.filter { $0.id == "codex-plugin" }) { section in
-                                        skillSectionCard(group: group, section: section)
+                                    if !recentItems.isEmpty,
+                                       let recentSectionID = whatsNewSectionID(for: selectedTab) {
+                                        whatsNewSectionCard(recentItems, sectionID: recentSectionID)
                                     }
-                                }
 
-                                // Built-in Skills
-                                ForEach(tabGroups.filter { $0.id != "pinned" }) { group in
-                                    ForEach(group.sections.filter { $0.id == "codex-builtin" }) { section in
-                                        skillSectionCard(group: group, section: section)
+                                    // Installed Plugins
+                                    if !plugins.isEmpty {
+                                        pluginSectionCard(plugins)
+                                    }
+
+                                    // Plugin Skills
+                                    ForEach(tabGroups.filter { $0.id != "pinned" }) { group in
+                                        ForEach(group.sections.filter { $0.id == "codex-plugin" }) { section in
+                                            skillSectionCard(group: group, section: section)
+                                        }
+                                    }
+
+                                    // Built-in Skills
+                                    ForEach(tabGroups.filter { $0.id != "pinned" }) { group in
+                                        ForEach(group.sections.filter { $0.id == "codex-builtin" }) { section in
+                                            skillSectionCard(group: group, section: section)
+                                        }
+                                    }
+                                } else {
+                                    if !recentItems.isEmpty,
+                                       let recentSectionID = whatsNewSectionID(for: selectedTab) {
+                                        whatsNewSectionCard(recentItems, sectionID: recentSectionID)
+                                    }
+
+                                    ForEach(tabGroups.filter { $0.id != "pinned" }) { group in
+                                        ForEach(group.sections.filter { $0.id == "pi-managed" }) { section in
+                                            skillSectionCard(group: group, section: section)
+                                        }
+                                        ForEach(group.sections.filter { $0.id == "pi-shared" }) { section in
+                                            skillSectionCard(group: group, section: section)
+                                        }
+                                        ForEach(group.sections.filter { $0.id == "pi-workspace" }) { section in
+                                            skillSectionCard(group: group, section: section)
+                                        }
                                     }
                                 }
                             }
@@ -797,7 +817,7 @@ struct MenuBarView: View {
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Mix Claude Code and Codex skills into one saved list.")
+                        Text("Mix Claude Code, Codex, and Pi skills into one saved list.")
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
@@ -809,7 +829,7 @@ struct MenuBarView: View {
                     }
                 }
             } else {
-                Text("Build custom sets like Docs, Release, or Debugging across Claude Code and Codex.")
+                Text("Build custom sets like Docs, Release, or Debugging across Claude Code, Codex, and Pi.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -936,7 +956,7 @@ struct MenuBarView: View {
             Text("No collections yet")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
-            Text("Create a collection to group Claude Code and Codex skills together.")
+            Text("Create a collection to group Claude Code, Codex, and Pi skills together.")
                 .font(.system(size: 12))
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -1132,6 +1152,7 @@ struct MenuBarView: View {
         switch tab {
         case .claudeCode: return claudeColor
         case .codex: return codexColor
+        case .piCLI: return piColor
         case .collections: return collectionsColor
         }
     }
@@ -1209,8 +1230,10 @@ struct MenuBarView: View {
             return "Create a skill folder with a SKILL.md file in:"
         case .codex:
             return "Install a plugin or create a folder with SKILL.md in:"
+        case .piCLI:
+            return "Create a folder with SKILL.md in one of Pi's built-in discovery paths:"
         case .collections:
-            return "Create a collection to group skills across Claude Code and Codex."
+            return "Create a collection to group skills across Claude Code, Codex, and Pi."
         }
     }
 
@@ -1220,6 +1243,8 @@ struct MenuBarView: View {
             return "No Claude Code skills found"
         case .codex:
             return "No Codex items found"
+        case .piCLI:
+            return "No Pi skills found"
         case .collections:
             return "No collections found"
         }
@@ -1231,6 +1256,8 @@ struct MenuBarView: View {
             return "No matching skills or plugins"
         case .claudeCode:
             return "No matching skills"
+        case .piCLI:
+            return "No matching Pi skills"
         case .collections:
             return "No matching collections"
         }
@@ -1242,6 +1269,8 @@ struct MenuBarView: View {
             return "~/.claude/skills/"
         case .codex:
             return "~/.codex/skills/\n~/.codex/plugins/cache/"
+        case .piCLI:
+            return "~/.pi/agent/skills/\n~/.agents/skills/\n<cwd>/.pi/skills/\n<cwd>/.../.agents/skills/"
         case .collections:
             return "Use the New Collection button above."
         }
@@ -1255,6 +1284,8 @@ struct MenuBarView: View {
             return "Search skills or agents..."
         case .codex:
             return "Search skills or plugins..."
+        case .piCLI:
+            return "Search Pi skills..."
         }
     }
 
@@ -1316,6 +1347,8 @@ struct MenuBarView: View {
             return "claude-whats-new"
         case .codex:
             return "codex-whats-new"
+        case .piCLI:
+            return "pi-whats-new"
         case .collections:
             return nil
         }

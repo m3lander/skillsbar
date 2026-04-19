@@ -414,21 +414,27 @@ struct UsageStatsView: View {
         }
 
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let libraryPath: String
-
         switch stat.source {
         case .claudeCode:
-            libraryPath = stat.skillName.contains(":")
+            let libraryPath = stat.skillName.contains(":")
                 ? "\(home)/.claude/plugins/cache"
                 : "\(home)/.claude/skills"
+            if FileManager.default.fileExists(atPath: libraryPath) {
+                return .missingOnDisk
+            }
         case .codexCLI:
-            libraryPath = stat.skillName.contains(":")
+            let libraryPath = stat.skillName.contains(":")
                 ? "\(home)/.codex/plugins/cache"
                 : "\(home)/.codex/skills"
-        }
-
-        if FileManager.default.fileExists(atPath: libraryPath) {
-            return .missingOnDisk
+            if FileManager.default.fileExists(atPath: libraryPath) {
+                return .missingOnDisk
+            }
+        case .piCLI:
+            let hasPiDiscoveryRoots = SkillScanner.piBuiltInDiscoveryRoots()
+                .contains(where: { FileManager.default.fileExists(atPath: $0) })
+            if hasPiDiscoveryRoots {
+                return .missingOnDisk
+            }
         }
 
         return .notInstalled

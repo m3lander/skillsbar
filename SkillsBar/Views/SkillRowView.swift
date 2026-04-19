@@ -11,6 +11,7 @@ struct SkillRowView: View {
         switch skill.source {
         case .claudeCode: return Color(red: 0.85, green: 0.45, blue: 0.1)
         case .codexCLI: return .purple
+        case .piCLI: return .indigo
         }
     }
 
@@ -28,7 +29,7 @@ struct SkillRowView: View {
                         .font(.system(size: 14, weight: .medium))
                         .lineLimit(1)
                     if showSourceBadge {
-                        Text(skill.source.groupTitle == "Claude Code" ? "Claude" : "Codex")
+                        Text(skill.source.shortLabel)
                             .font(.system(size: 9, weight: .bold))
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)

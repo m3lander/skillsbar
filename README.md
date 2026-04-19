@@ -5,7 +5,7 @@
 <h1 align="center">SkillsBar</h1>
 
 <p align="center">
-  A macOS menu bar app for browsing and managing your <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> and <a href="https://github.com/openai/codex">Codex CLI</a> skills, plugins, collections, and agents.
+  A macOS menu bar app for browsing and managing your <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://github.com/openai/codex">Codex CLI</a>, and Pi CLI skills, plugins, collections, and agents.
 </p>
 
 <p align="center">
@@ -63,6 +63,10 @@
 | `~/.claude/agents/`        | Claude Code user agents                    |
 | `~/.codex/skills/`         | Codex CLI built-in and user skills         |
 | `~/.codex/plugins/cache/`  | Codex CLI plugins and plugin-provided skills |
+| `~/.pi/agent/skills/` or `$PI_CODING_AGENT_DIR/skills` | Pi CLI agent skills |
+| `~/.agents/skills/`        | Pi CLI shared skills                       |
+| `<cwd>/.pi/skills/`        | Pi CLI workspace skills                    |
+| `<cwd>/.../.agents/skills/` (ancestor walk) | Pi CLI ancestor-discovered skills      |
 
 ## Install
 

@@ -11,6 +11,7 @@ struct SkillScanner {
         skills.append(contentsOf: scanCodexPluginSkills())
         skills.append(contentsOf: scanCodexBuiltInSkills())
         skills.append(contentsOf: scanCodexUserSkills())
+        skills.append(contentsOf: scanPiCLISkills())
         return skills
     }
 
@@ -106,6 +107,55 @@ struct SkillScanner {
         return skills
     }
 
+    // MARK: - Pi CLI
+
+    /// Scans Pi CLI's fixed built-in discovery roots.
+    func scanPiCLISkills() -> [Skill] {
+        let managedPath = Self.piManagedSkillsPath(fileManager: fileManager)
+        let sharedPath = Self.piSharedSkillsPath(fileManager: fileManager)
+        let roots = Self.piBuiltInDiscoveryRoots(fileManager: fileManager)
+
+        var discovered: [Skill] = []
+        var seenPaths: Set<String> = []
+
+        for root in roots {
+            let source: SkillSource
+            if root == managedPath {
+                source = .piCLI(.managed)
+            } else if root == sharedPath {
+                source = .piCLI(.shared)
+            } else {
+                source = .piCLI(.workspace)
+            }
+
+            for skill in scanDirectChildren(dir: root, source: source) {
+                let standardizedPath = (skill.path as NSString).standardizingPath
+                guard seenPaths.insert(standardizedPath).inserted else { continue }
+                discovered.append(skill)
+            }
+        }
+
+        return discovered
+    }
+
+    static func piBuiltInDiscoveryRoots(fileManager: FileManager = .default) -> [String] {
+        let managedPath = piManagedSkillsPath(fileManager: fileManager)
+        let sharedPath = piSharedSkillsPath(fileManager: fileManager)
+        let currentDirectory = (fileManager.currentDirectoryPath as NSString).standardizingPath
+
+        var roots: [String] = [
+            managedPath,
+            sharedPath,
+            (currentDirectory as NSString).appendingPathComponent(".pi/skills")
+        ]
+
+        for directory in ancestorDirectoriesForPiDiscovery(startingAt: currentDirectory, fileManager: fileManager) {
+            roots.append((directory as NSString).appendingPathComponent(".agents/skills"))
+        }
+
+        return dedupePaths(roots)
+    }
+
     // MARK: - Helpers
 
     private func scanDirectChildren(dir: String, source: SkillSource, checkAgentYaml: Bool = false) -> [Skill] {
@@ -176,5 +226,68 @@ struct SkillScanner {
         }
 
         return Skill(name: name, description: description, source: source, path: path, version: parsed.version, body: parsed.body, lastModified: lastModified, folderContents: allItems, folderDirectories: directories, directoryContents: dirContents)
+    }
+
+    private static func piManagedSkillsPath(fileManager: FileManager) -> String {
+        let env = ProcessInfo.processInfo.environment["PI_CODING_AGENT_DIR"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let baseDir = (env?.isEmpty == false ? env! : "\(home)/.pi/agent")
+        let expandedBaseDir = (baseDir as NSString).expandingTildeInPath
+        return ((expandedBaseDir as NSString).appendingPathComponent("skills") as NSString).standardizingPath
+    }
+
+    private static func piSharedSkillsPath(fileManager: FileManager) -> String {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        return ("\(home)/.agents/skills" as NSString).standardizingPath
+    }
+
+    private static func ancestorDirectoriesForPiDiscovery(startingAt startPath: String, fileManager: FileManager) -> [String] {
+        var directories: [String] = []
+        var currentPath = (startPath as NSString).standardizingPath
+        let stopPath = piAncestorWalkStopPath(startingAt: currentPath, fileManager: fileManager)
+
+        while true {
+            directories.append(currentPath)
+            if currentPath == stopPath || currentPath == "/" {
+                break
+            }
+            currentPath = (currentPath as NSString).deletingLastPathComponent
+            if currentPath.isEmpty {
+                currentPath = "/"
+            }
+        }
+
+        return directories
+    }
+
+    private static func piAncestorWalkStopPath(startingAt startPath: String, fileManager: FileManager) -> String {
+        var currentPath = (startPath as NSString).standardizingPath
+        while true {
+            let gitEntry = (currentPath as NSString).appendingPathComponent(".git")
+            if fileManager.fileExists(atPath: gitEntry) {
+                return currentPath
+            }
+
+            if currentPath == "/" {
+                return "/"
+            }
+
+            let parent = (currentPath as NSString).deletingLastPathComponent
+            if parent.isEmpty || parent == currentPath {
+                return "/"
+            }
+            currentPath = parent
+        }
+    }
+
+    private static func dedupePaths(_ paths: [String]) -> [String] {
+        var seen: Set<String> = []
+        var deduped: [String] = []
+
+        for path in paths.map({ ($0 as NSString).standardizingPath }) where seen.insert(path).inserted {
+            deduped.append(path)
+        }
+
+        return deduped
     }
 }

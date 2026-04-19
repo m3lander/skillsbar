@@ -423,6 +423,11 @@ final class UsageTracker: ObservableObject {
                 return String(trimmed.dropFirst())
             }
             return trimmed
+        case .piCLI:
+            if trimmed.hasPrefix("$") {
+                return String(trimmed.dropFirst())
+            }
+            return trimmed
         }
     }
 
@@ -436,6 +441,8 @@ final class UsageTracker: ObservableObject {
             return .claudeCode
         case .codexCLI:
             return .codexCLI
+        case .piCLI:
+            return .piCLI
         }
     }
 
