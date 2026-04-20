@@ -128,7 +128,10 @@ final class SkillStore: ObservableObject {
 
     func resolvedCollections(searchText query: String = "") -> [ResolvedSkillCollection] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let skillLookup = Dictionary(uniqueKeysWithValues: lastScannedSkills.map { ($0.path, $0) })
+        let skillLookup = Dictionary(
+            lastScannedSkills.map { ($0.path, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         return collections.compactMap { collection in
             let resolvedSkills = collection.skillPaths.compactMap { skillLookup[$0] }
@@ -284,16 +287,9 @@ final class SkillStore: ObservableObject {
     }
 
     func groupsForTab(_ tab: SkillTab) -> [SkillGroup] {
+        guard let groupID = tab.groupID else { return [] }
         let source = filteredGroups
-        var tabGroups: [SkillGroup]
-        switch tab {
-        case .claudeCode:
-            tabGroups = source.filter { $0.id == "claude-code" }
-        case .codex:
-            tabGroups = source.filter { $0.id == "codex-cli" }
-        case .collections:
-            return []
-        }
+        var tabGroups = source.filter { $0.id == groupID }
 
         // Build pinned section from skills in this tab, preserving custom order
         let allSkills = tabGroups.flatMap { $0.sections.flatMap { $0.skills } }
@@ -383,17 +379,100 @@ final class SkillStore: ObservableObject {
         case .codex:
             let skillCount = allGroups.filter { $0.id == "codex-cli" }.reduce(0) { $0 + $1.totalCount }
             return skillCount + plugins.count
+        case .hermes, .openClaw, .pi:
+            guard let groupID = tab.groupID else { return 0 }
+            return allGroups.filter { $0.id == groupID }.reduce(0) { $0 + $1.totalCount }
         case .collections:
             return collections.count
         }
     }
 
-    enum SkillTab: String, CaseIterable, Identifiable {
-        case claudeCode = "Claude Code"
-        case codex = "Codex"
-        case collections = "Collections"
+    enum SkillTab: CaseIterable, Identifiable, RawRepresentable {
+        case claudeCode
+        case codex
+        case hermes
+        case openClaw
+        case pi
+        case collections
+
+        init?(rawValue: String) {
+            switch rawValue {
+            case "claude-code", "Claude Code":
+                self = .claudeCode
+            case "codex", "Codex":
+                self = .codex
+            case "hermes", "Hermes":
+                self = .hermes
+            case "openclaw", "OpenClaw":
+                self = .openClaw
+            case "pi", "Pi":
+                self = .pi
+            case "collections", "Collections":
+                self = .collections
+            default:
+                return nil
+            }
+        }
+
+        var rawValue: String {
+            switch self {
+            case .claudeCode: return "claude-code"
+            case .codex: return "codex"
+            case .hermes: return "hermes"
+            case .openClaw: return "openclaw"
+            case .pi: return "pi"
+            case .collections: return "collections"
+            }
+        }
 
         var id: String { rawValue }
+
+        var displayTitle: String {
+            switch self {
+            case .claudeCode: return "Claude"
+            case .codex: return "Codex"
+            case .hermes: return "Hermes"
+            case .openClaw: return "OpenClaw"
+            case .pi: return "Pi"
+            case .collections: return "Collections"
+            }
+        }
+
+        var groupID: String? {
+            switch self {
+            case .claudeCode: return "claude-code"
+            case .codex: return "codex-cli"
+            case .hermes: return "hermes"
+            case .openClaw: return "openclaw"
+            case .pi: return "pi"
+            case .collections: return nil
+            }
+        }
+
+        var sectionSources: [SkillSource] {
+            switch self {
+            case .claudeCode:
+                return [.claudeCode(.user), .claudeCode(.plugin)]
+            case .codex:
+                return [.codexCLI(.user), .codexCLI(.plugin), .codexCLI(.builtin)]
+            case .hermes:
+                return [.hermes(.profileLocal), .hermes(.external), .hermes(.plugin), .hermes(.optional)]
+            case .openClaw:
+                return [
+                    .openClaw(.workspace),
+                    .openClaw(.projectAgents),
+                    .openClaw(.personalAgents),
+                    .openClaw(.managed),
+                    .openClaw(.bundled),
+                    .openClaw(.extra),
+                    .openClaw(.plugin),
+                ]
+            case .pi:
+                return [.pi(.agentHome), .pi(.personalAgents), .pi(.settings), .pi(.package)]
+            case .collections:
+                return []
+            }
+        }
     }
 
     // MARK: - Lifecycle
@@ -430,6 +509,7 @@ final class SkillStore: ObservableObject {
     }
 
     func deleteSkill(_ skill: Skill) {
+        guard skill.source.isDeletable else { return }
         let fileManager = FileManager.default
         let skillDir = (skill.path as NSString).deletingLastPathComponent
 
@@ -540,39 +620,20 @@ final class SkillStore: ObservableObject {
 
         let fileManager = FileManager.default
         let home = fileManager.homeDirectoryForCurrentUser.path
-        let claudeRoot = (home as NSString).appendingPathComponent(".claude")
-        let codexRoot = (home as NSString).appendingPathComponent(".codex")
-
-        let targetPaths = [
-            (home as NSString).appendingPathComponent(".claude/skills"),
-            (home as NSString).appendingPathComponent(".claude/plugins/cache"),
-            (home as NSString).appendingPathComponent(".claude/agents"),
-            (home as NSString).appendingPathComponent(".codex/skills"),
-            (home as NSString).appendingPathComponent(".codex/plugins/cache"),
-        ].map { standardizedPath($0) }
+        let targetPaths = SkillScanner.watchedDirectories()
+            .map { standardizedPath($0.path) }
 
         watchedRefreshPrefixes = targetPaths
         watchedCreationMarkers = []
 
-        var watchPaths = targetPaths
-
-        let claudeTargets = targetPaths.filter { path($0, isEqualToOrInside: standardizedPath(claudeRoot)) }
-        if claudeTargets.contains(where: { !fileManager.fileExists(atPath: $0) }) {
-            if fileManager.fileExists(atPath: claudeRoot) {
-                watchPaths.append(standardizedPath(claudeRoot))
+        var watchPaths: [String] = []
+        for target in targetPaths {
+            var isDir: ObjCBool = false
+            if fileManager.fileExists(atPath: target, isDirectory: &isDir), isDir.boolValue {
+                watchPaths.append(target)
             } else {
-                watchPaths.append(standardizedPath(home))
-                watchedCreationMarkers.insert(standardizedPath(claudeRoot))
-            }
-        }
-
-        let codexTargets = targetPaths.filter { path($0, isEqualToOrInside: standardizedPath(codexRoot)) }
-        if codexTargets.contains(where: { !fileManager.fileExists(atPath: $0) }) {
-            if fileManager.fileExists(atPath: codexRoot) {
-                watchPaths.append(standardizedPath(codexRoot))
-            } else {
-                watchPaths.append(standardizedPath(home))
-                watchedCreationMarkers.insert(standardizedPath(codexRoot))
+                watchPaths.append(nearestExistingDirectory(from: target, fallback: home))
+                watchedCreationMarkers.insert(target)
             }
         }
 
@@ -622,6 +683,18 @@ final class SkillStore: ObservableObject {
         return deduped
     }
 
+    private func nearestExistingDirectory(from path: String, fallback: String) -> String {
+        var candidate = URL(fileURLWithPath: path)
+        while candidate.path != "/" {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDir), isDir.boolValue {
+                return standardizedPath(candidate.path)
+            }
+            candidate.deleteLastPathComponent()
+        }
+        return standardizedPath(fallback)
+    }
+
     nonisolated private static func scanContent() -> (skills: [Skill], agents: [Agent], plugins: [Plugin]) {
         let skills = SkillScanner().scanAll()
         let agents = AgentScanner().scanAll()
@@ -659,41 +732,20 @@ final class SkillStore: ObservableObject {
     }
 
     private func buildGroups(from skills: [Skill]) -> [SkillGroup] {
-        var claudeUserSkills: [Skill] = []
-        var claudePluginSkills: [Skill] = []
-        var codexBuiltinSkills: [Skill] = []
-        var codexPluginSkills: [Skill] = []
-        var codexUserSkills: [Skill] = []
-
+        var skillsBySource: [SkillSource: [Skill]] = [:]
         for skill in skills {
-            switch skill.source {
-            case .claudeCode(.user): claudeUserSkills.append(skill)
-            case .claudeCode(.plugin): claudePluginSkills.append(skill)
-            case .codexCLI(.builtin): codexBuiltinSkills.append(skill)
-            case .codexCLI(.plugin): codexPluginSkills.append(skill)
-            case .codexCLI(.user): codexUserSkills.append(skill)
-            }
+            skillsBySource[skill.source, default: []].append(skill)
         }
 
         var groups: [SkillGroup] = []
-
-        let claudeSections = [
-            claudeUserSkills.isEmpty ? nil : SkillSection(id: "claude-user", title: "User Skills", skills: sortSkills(claudeUserSkills)),
-            claudePluginSkills.isEmpty ? nil : SkillSection(id: "claude-plugin", title: "Plugin Skills", skills: sortSkills(claudePluginSkills)),
-        ].compactMap { $0 }
-
-        if !claudeSections.isEmpty {
-            groups.append(SkillGroup(id: "claude-code", title: "Claude Code", sections: claudeSections))
-        }
-
-        let codexSections = [
-            codexUserSkills.isEmpty ? nil : SkillSection(id: "codex-user", title: "User Skills", skills: sortSkills(codexUserSkills)),
-            codexPluginSkills.isEmpty ? nil : SkillSection(id: "codex-plugin", title: "Plugin Skills", skills: sortSkills(codexPluginSkills)),
-            codexBuiltinSkills.isEmpty ? nil : SkillSection(id: "codex-builtin", title: "Built-in Skills", skills: sortSkills(codexBuiltinSkills)),
-        ].compactMap { $0 }
-
-        if !codexSections.isEmpty {
-            groups.append(SkillGroup(id: "codex-cli", title: "Codex CLI", sections: codexSections))
+        for tab in SkillTab.allCases where tab != .collections {
+            let sections = tab.sectionSources.compactMap { source -> SkillSection? in
+                guard let sourceSkills = skillsBySource[source], !sourceSkills.isEmpty else { return nil }
+                return SkillSection(id: source.sectionID, title: source.sectionTitle, skills: sortSkills(sourceSkills))
+            }
+            if !sections.isEmpty, let groupID = tab.groupID {
+                groups.append(SkillGroup(id: groupID, title: sections[0].skills[0].source.groupTitle, sections: sections))
+            }
         }
 
         return groups

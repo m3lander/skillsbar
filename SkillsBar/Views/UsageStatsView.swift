@@ -425,6 +425,12 @@ struct UsageStatsView: View {
             libraryPath = stat.skillName.contains(":")
                 ? "\(home)/.codex/plugins/cache"
                 : "\(home)/.codex/skills"
+        case .hermes:
+            libraryPath = "\(home)/.hermes/skills"
+        case .openClaw:
+            libraryPath = "\(home)/.openclaw/skills"
+        case .pi:
+            libraryPath = "\(home)/.pi/agent/skills"
         }
 
         if FileManager.default.fileExists(atPath: libraryPath) {

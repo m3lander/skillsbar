@@ -110,7 +110,7 @@ struct AboutView: View {
                         .clipShape(Capsule())
                 }
 
-                Text("Browse Claude Code and Codex CLI skills, plugins, agents, and collections right from your menu bar.")
+                Text("Browse Claude Code, Codex CLI, Hermes, OpenClaw, and Pi skills, plugins, agents, and collections right from your menu bar.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -143,14 +143,9 @@ struct AboutView: View {
     }
 
     private var watchedDirectories: [(displayPath: String, resolvedURL: URL)] {
-        let homeURL = fileManager.homeDirectoryForCurrentUser
-        return [
-            ("~/.claude/skills/", homeURL.appendingPathComponent(".claude/skills", isDirectory: true)),
-            ("~/.claude/plugins/cache/", homeURL.appendingPathComponent(".claude/plugins/cache", isDirectory: true)),
-            ("~/.claude/agents/", homeURL.appendingPathComponent(".claude/agents", isDirectory: true)),
-            ("~/.codex/skills/", homeURL.appendingPathComponent(".codex/skills", isDirectory: true)),
-            ("~/.codex/plugins/cache/", homeURL.appendingPathComponent(".codex/plugins/cache", isDirectory: true))
-        ]
+        SkillScanner.watchedDirectories().map {
+            ($0.displayPath, URL(fileURLWithPath: $0.path))
+        }
     }
 
     private var footerLinks: some View {

@@ -14,11 +14,11 @@ struct Skill: Identifiable, Hashable {
     var directoryContents: [String: [String]] = [:]
 
     init(name: String, description: String, source: SkillSource, path: String, version: String? = nil, body: String = "", lastModified: Date? = nil, folderContents: [String] = [], folderDirectories: Set<String> = [], directoryContents: [String: [String]] = [:]) {
-        self.id = path
+        self.id = "\(source.sectionID)::\((path as NSString).standardizingPath)"
         self.name = name
         self.description = description
         self.source = source
-        self.path = path
+        self.path = (path as NSString).standardizingPath
         self.version = version
         self.body = body
         self.lastModified = lastModified
@@ -52,11 +52,19 @@ struct Skill: Identifiable, Hashable {
     }
 
     var triggerCommand: String {
+        let skillName: String = {
+            let url = URL(fileURLWithPath: path)
+            if url.lastPathComponent.lowercased().hasSuffix(".md"),
+               url.lastPathComponent != "SKILL.md" {
+                return url.deletingPathExtension().lastPathComponent
+            }
+            return url.deletingLastPathComponent().lastPathComponent
+        }()
+
         switch source {
         case .claudeCode(.user):
             // ~/.claude/skills/<folder-name>/SKILL.md -> /folder-name
-            let folderName = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
-            return "/\(folderName)"
+            return "/\(skillName)"
 
         case .claudeCode(.plugin):
             // ~/.claude/plugins/cache/<repo>/<plugin>/<ver>/skills/<skill>/SKILL.md
@@ -69,12 +77,10 @@ struct Skill: Identifiable, Hashable {
                 let skillName = components[skillsIdx + 1]
                 return "\(pluginName):\(skillName)"
             }
-            let folderName = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
-            return folderName
+            return skillName
 
         case .codexCLI(.builtin):
-            let folderName = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
-            return folderName
+            return skillName
 
         case .codexCLI(.plugin):
             let components = path.components(separatedBy: "/")
@@ -85,12 +91,30 @@ struct Skill: Identifiable, Hashable {
                 let skillName = components[skillsIdx + 1]
                 return "\(pluginName):\(skillName)"
             }
-            let folderName = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
-            return folderName
+            return skillName
 
         case .codexCLI(.user):
-            let folderName = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
-            return folderName
+            return skillName
+
+        case .hermes(.plugin):
+            let components = path.components(separatedBy: "/")
+            if let skillsIdx = components.lastIndex(of: "skills"),
+               skillsIdx > 0,
+               skillsIdx + 1 < components.count {
+                let pluginName = components[skillsIdx - 1]
+                let skillName = components[skillsIdx + 1]
+                return "\(pluginName):\(skillName)"
+            }
+            return skillName
+
+        case .hermes:
+            return skillName
+
+        case .openClaw:
+            return "/\(skillName)"
+
+        case .pi:
+            return "/skill:\(skillName)"
         }
     }
 
@@ -106,6 +130,36 @@ struct Skill: Identifiable, Hashable {
             return "Available through an installed Codex plugin"
         case .codexCLI(.user):
             return "Available as an installed skill in Codex CLI"
+        case .hermes(.profileLocal):
+            return "Available in the owning Hermes profile"
+        case .hermes(.external):
+            return "Loaded from Hermes skills.external_dirs"
+        case .hermes(.plugin):
+            return "Load explicitly with skill_view(\"plugin:skill\") in Hermes"
+        case .hermes(.optional):
+            return "Official Hermes optional skill; install or copy into a profile to edit"
+        case .openClaw(.workspace):
+            return "Highest-precedence OpenClaw workspace skill"
+        case .openClaw(.projectAgents):
+            return "OpenClaw project .agents skill for configured workspaces"
+        case .openClaw(.personalAgents):
+            return "OpenClaw personal .agents skill"
+        case .openClaw(.managed):
+            return "Managed OpenClaw skill available to all local agents"
+        case .openClaw(.bundled):
+            return "Bundled OpenClaw skill"
+        case .openClaw(.extra):
+            return "Loaded from OpenClaw skills.load.extraDirs"
+        case .openClaw(.plugin):
+            return "Loaded from an enabled OpenClaw plugin skill directory"
+        case .pi(.agentHome):
+            return "Available from the Pi coding agent skills directory"
+        case .pi(.personalAgents):
+            return "Available from ~/.agents/skills for Pi"
+        case .pi(.settings):
+            return "Loaded from Pi settings skills[]"
+        case .pi(.package):
+            return "Loaded from an installed package pi.skills manifest"
         }
     }
 }

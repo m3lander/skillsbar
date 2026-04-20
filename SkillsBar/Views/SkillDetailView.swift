@@ -62,12 +62,14 @@ struct SkillDetailView: View {
                         color: .secondary,
                         action: copyPath
                     )
-                    actionButton(
-                        icon: "trash",
-                        label: "Delete",
-                        color: .red.opacity(0.8),
-                        action: { showDeleteConfirmation = true }
-                    )
+                    if skill.source.isDeletable {
+                        actionButton(
+                            icon: "trash",
+                            label: "Delete",
+                            color: .red.opacity(0.8),
+                            action: { showDeleteConfirmation = true }
+                        )
+                    }
                 }
             }
             .padding(.horizontal, 20)
@@ -314,7 +316,7 @@ struct SkillDetailView: View {
                             }
                         }
 
-                        Text("Collections can mix Claude Code and Codex skills.")
+                        Text("Collections can mix skills across supported tools.")
                             .font(.system(size: 12))
                             .foregroundStyle(.tertiary)
                     }
@@ -421,6 +423,8 @@ struct SkillDetailView: View {
         case "blue": return .blue
         case "green": return .green
         case "orange": return .orange
+        case "teal": return .teal
+        case "pink": return .pink
         default: return .gray
         }
     }

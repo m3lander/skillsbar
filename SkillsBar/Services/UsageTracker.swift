@@ -423,6 +423,18 @@ final class UsageTracker: ObservableObject {
                 return String(trimmed.dropFirst())
             }
             return trimmed
+        case .hermes:
+            return trimmed
+        case .openClaw:
+            if trimmed.hasPrefix("/") {
+                return String(trimmed.dropFirst())
+            }
+            return trimmed
+        case .pi:
+            if trimmed.hasPrefix("/skill:") {
+                return String(trimmed.dropFirst("/skill:".count))
+            }
+            return trimmed
         }
     }
 
@@ -436,6 +448,12 @@ final class UsageTracker: ObservableObject {
             return .claudeCode
         case .codexCLI:
             return .codexCLI
+        case .hermes:
+            return .hermes
+        case .openClaw:
+            return .openClaw
+        case .pi:
+            return .pi
         }
     }
 
